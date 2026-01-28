@@ -101,12 +101,13 @@ function rhythm_game:new()
     spawn_timer = 0,
     spawn_interval = 10,
     speed = 2,
-    hit_y = 88,
+    hit_y = 100,
     hit_window = 5,
     score = 0,
+    combo = 0,
     misses = 0,
     judgement_texts = {},  -- {text, x, y, timer, color}
-    arrow_scale = {1,1,1,1}, -- arrow enlargement
+    arrow_scale = {false,false,false,false}, -- arrow color
     arrow_flash_time = 3
   }
   setmetatable(g, rhythm_game)
@@ -114,14 +115,8 @@ function rhythm_game:new()
 end
 
 function rhythm_game:start()
+  self.reset()
   self.state = "active"
-  self.timer = 0
-  self.spawn_timer = 0
-  self.notes = {}
-  self.score = 0
-  self.misses = 0
-  self.judgement_texts = {}
-  self.arrow_scale = {1,1,1,1}
 end
 
 function rhythm_game:reset()
@@ -130,16 +125,16 @@ function rhythm_game:reset()
   self.spawn_timer = 0
   self.notes = {}
   self.score = 0
-  self.score = 0
+  self.combo = 0
   self.misses = 0
   self.judgement_texts = {}
-  self.arrow_scale = {1,1,1,1}
+  self.arrow_scale = {false,false,false,false}
 end
 
 function rhythm_game:update()
   if self.state ~= "active" then return end
 
-  self.timer += 1
+  -- self.timer += 1
   if self.timer >= self.duration then
     self:reset()
     return
@@ -183,7 +178,7 @@ end
 
 function rhythm_game:check_hit(lane)
   -- enlarge arrow for press effect
-  self.arrow_scale[lane] = 1.5
+  -- self.arrow_scale[lane] = 1.5
 
   for n in all(self.notes) do
     if n.lane == lane and abs(n.y - self.hit_y) <= self.hit_window then
@@ -216,31 +211,33 @@ function rhythm_game:draw()
   line(self.lanes[1]-8,0,self.lanes[1]-8,128,5)
   line(self.lanes[4]+8,0,self.lanes[4]+8,128,5)
 
+  local offset = 0
+
   -- arrow hit cues
   local arrows = {
-    function(scale) -- right (lane1)
+    function(color) -- right (lane1)
       local x,y = self.lanes[1], self.hit_y+8
-      line(x-2, y, x+1, y+3*scale, 8)
-      line(x-2, y, x+1, y-3*scale, 8)
-      line(x+2, y+3*scale, x+2, y-3*scale, 8)
+      line(x-2, y, x+1, y+3, 8)
+      line(x-2, y, x+1, y-3, 8)
+      line(x+2, y+3, x+2, y-3, 8)
     end,
-    function(scale) -- up (lane2)
+    function(color) -- up (lane2)
       local x,y = self.lanes[2], self.hit_y+6
-      line(x, y, x+3*scale, y+3*scale, 10)
-      line(x, y, x-3*scale, y+3*scale, 10)
-      line(x+3*scale, y+4*scale, x-3*scale, y+4*scale, 10)
+      line(x, y, x+3, y+3, 10)
+      line(x, y, x-3, y+3, 10)
+      line(x+3, y+4, x-3, y+4, 10)
     end,
-    function(scale) -- down (lane3)
+    function(color) -- down (lane3)
       local x,y = self.lanes[3], self.hit_y+7
-      line(x+3*scale, y, x, y+3*scale, 11)
-      line(x-3*scale, y, x, y+3*scale, 11)
-      line(x+3*scale, y-1*scale, x-3*scale, y-1*scale, 11)
+      line(x+3, y, x, y+3, 11)
+      line(x-3, y, x, y+3, 11)
+      line(x+3, y-1, x-3, y-1, 11)
     end,
-    function(scale) -- left (lane4)
+    function(color) -- left (lane4)
       local x,y = self.lanes[4], self.hit_y+8
-      line(x+2, y, x-1, y+3*scale, 12)
-      line(x+2, y, x-1, y-3*scale, 12)
-      line(x-2, y+3*scale, x-2, y-3*scale, 12)
+      line(x+2, y, x-1, y+3, 12)
+      line(x+2, y, x-1, y-3, 12)
+      line(x-2, y+3, x-2, y-3, 12)
     end
   }
 
@@ -263,10 +260,13 @@ function rhythm_game:draw()
   -- ui
   rectfill(0,0,127,10,0)
   print("rhythm!",52,1,11)
-  print("combo", 6, self.hit_y/2-4, 7)
-  print("score", 6, self.hit_y/2-4, 7)
+  local centre = self.hit_y/2
+  print("combo", 6, centre-7, 7)
   local length = #tostr(self.score)
-  print(self.score, 16 - (length * 2), self.hit_y/2+2, 7)
+  print(self.score, 16 - (length * 2), centre-1, 7)
+  print("score", 6, centre+6, 7)
+  local length = #tostr(self.score)
+  print(self.score, 16 - (length * 2), centre+12, 7)
 end
 
 
