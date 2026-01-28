@@ -107,7 +107,7 @@ function rhythm_game:new()
     combo = 0,
     misses = 0,
     judgement_texts = {},  -- {text, x, y, timer, color}
-    arrow_scale = {false,false,false,false}, -- arrow color
+    arrow_active = {false,false,false,false}, -- arrow color
     arrow_flash_time = 3
   }
   setmetatable(g, rhythm_game)
@@ -115,8 +115,15 @@ function rhythm_game:new()
 end
 
 function rhythm_game:start()
-  self.reset()
   self.state = "active"
+  self.timer = 0
+  self.spawn_timer = 0
+  self.notes = {}
+  self.score = 0
+  self.combo = 0
+  self.misses = 0
+  self.judgement_texts = {}
+  self.arrow_active = {false,false,false,false}
 end
 
 function rhythm_game:reset()
@@ -128,7 +135,7 @@ function rhythm_game:reset()
   self.combo = 0
   self.misses = 0
   self.judgement_texts = {}
-  self.arrow_scale = {false,false,false,false}
+  self.arrow_active = {false,false,false,false}
 end
 
 function rhythm_game:update()
@@ -152,21 +159,28 @@ function rhythm_game:update()
     n.y += self.speed
     if n.y > self.hit_y + self.hit_window then
       self.misses += 1
+      self.combo = 0
       del(self.notes, n)
     end
   end
 
   -- reduce arrow scale back to normal
   for i=1,4 do
-    if self.arrow_scale[i] > 1 then
-      self.arrow_scale[i] -= 0.1
-      if self.arrow_scale[i] < 1 then self.arrow_scale[i] = 1 end
+    if self.arrow_active[i] then
+      self.arrow_active[i] = false
     end
   end
 
   -- update judgement texts
   for t in all(self.judgement_texts) do
     t.timer -= 1
+    t.y += (13 - t.timer)/2
+    t.x += 0.25
+    if t.timer <= 3 then 
+      t.color=1
+    elseif t.timer <=7 then 
+      t.color=5
+    end
     if t.timer <= 0 then del(self.judgement_texts, t) end
   end
 end
@@ -178,21 +192,24 @@ end
 
 function rhythm_game:check_hit(lane)
   -- enlarge arrow for press effect
-  -- self.arrow_scale[lane] = 1.5
-
+  self.arrow_active[lane] = true
   for n in all(self.notes) do
     if n.lane == lane and abs(n.y - self.hit_y) <= self.hit_window then
       local diff = abs(n.y - self.hit_y)
-      local jud,color
-      if diff <= 1 then jud="perfect" color=11
-      elseif diff <= 2 then jud="good" color=10
-      else jud="bad" color=9 end
+      local jud,color,score
+      if diff <= 1 then jud="Perfect" color=12 score = 15
+      elseif diff <= 2 then jud="Good" color=11 score = 10
+      else jud="Par" color = 10 score = 5 end
 
       add(self.judgement_texts,{
-        text = jud, x=n.x - 6, y = self.hit_y - 10, timer = 15, color = color
+        text = jud, timer = 15, color = color, y = self.hit_y/2, x = 112-(#jud*2)
       })
 
-      self.score += (jud=="perfect" and 150 or jud=="good" and 100 or 50)
+      self.combo += 1;
+      if self.combo > 20 then score*=6
+      elseif self.combo > 15 then score*=3
+      elseif self.combo > 10 then score=flr(1.5 * score) end
+      self.score += score
 
       del(self.notes, n)
       sfx(0)
@@ -205,44 +222,46 @@ function rhythm_game:draw()
   if self.state ~= "active" then return end
 
   -- hit line
-  line(self.lanes[1]-8, self.hit_y, self.lanes[4]+8, self.hit_y, 6)
+  line(self.lanes[1]-8, self.hit_y, self.lanes[4]+8, self.hit_y, 5)
 
   -- borders
-  line(self.lanes[1]-8,0,self.lanes[1]-8,128,5)
-  line(self.lanes[4]+8,0,self.lanes[4]+8,128,5)
-
-  local offset = 0
+  line(self.lanes[1]-8, 0,self.lanes[1]-8, 128, 6)
+  line(self.lanes[4]+8, 0,self.lanes[4]+8, 128, 6)
 
   -- arrow hit cues
   local arrows = {
-    function(color) -- right (lane1)
-      local x,y = self.lanes[1], self.hit_y+8
-      line(x-2, y, x+1, y+3, 8)
-      line(x-2, y, x+1, y-3, 8)
-      line(x+2, y+3, x+2, y-3, 8)
+    function(active) -- right (lane1)
+      local x,y,color = self.lanes[1],self.hit_y+8,8
+      if active then color = 7 end
+      line(x-2, y, x+1, y+3, color)
+      line(x-2, y, x+1, y-3, color)
+      line(x+2, y+3, x+2, y-3, color)
     end,
-    function(color) -- up (lane2)
-      local x,y = self.lanes[2], self.hit_y+6
-      line(x, y, x+3, y+3, 10)
-      line(x, y, x-3, y+3, 10)
-      line(x+3, y+4, x-3, y+4, 10)
+    function(active) -- up (lane2)
+      local x,y,color = self.lanes[2],self.hit_y+6,10
+      if active then color = 7 end
+      line(x, y, x+3, y+3, color)
+      line(x, y, x-3, y+3, color)
+      line(x+3, y+4, x-3, y+4, color)
     end,
-    function(color) -- down (lane3)
-      local x,y = self.lanes[3], self.hit_y+7
-      line(x+3, y, x, y+3, 11)
-      line(x-3, y, x, y+3, 11)
-      line(x+3, y-1, x-3, y-1, 11)
+    function(active) -- down (lane3)
+      local x,y,color = self.lanes[3],self.hit_y+7,11
+      if active then color = 7 end
+      line(x+3, y, x, y+3, color)
+      line(x-3, y, x, y+3, color)
+      line(x+3, y-1, x-3, y-1, color)
     end,
-    function(color) -- left (lane4)
-      local x,y = self.lanes[4], self.hit_y+8
-      line(x+2, y, x-1, y+3, 12)
-      line(x+2, y, x-1, y-3, 12)
-      line(x-2, y+3, x-2, y-3, 12)
+    function(active) -- left (lane4)
+      local x,y,color =self.lanes[4],self.hit_y+8,12
+      if active then color = 7 end
+      line(x+2, y, x-1, y+3, color)
+      line(x+2, y, x-1, y-3, color)
+      line(x-2, y+3, x-2, y-3, color)
     end
   }
 
   for i=1,4 do
-    arrows[i](self.arrow_scale[i])
+    arrows[i](self.arrow_active[i])
   end
 
   -- notes
